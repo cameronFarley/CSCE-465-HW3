@@ -1,0 +1,13 @@
+legacy_log_parser
+legacy_log_parser_fixed
+*.o
+*.out
+core
+core.*
+vgcore.*
+*.bin
+markers/*.txt
+*.key
+.env
+.DS_Store
+*.swp
