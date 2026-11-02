@@ -1,0 +1,107 @@
+Pasted text.txt
+TXT (Latex content)
+
+I have added the pdf for hw3 and lecture slides to the project context. This is going to be the specific chat that we will use for guidance on hw3. Ill preface that in no way shape or form are you allowed to violate the AI rules policy as dictated by the syllabus. All code work and report writing is my own but you are here to guide me on small things but dont implement. That being said lets continue with the real work. 
+
+I have pasted the latex template that we used for the last hw but I want you to keep this template but reformat it for this hw. And remove all the old content obviously
+
+Looking up the HW3 assignment for the reformat.
+
+I’ll check the HW3 handout in the project so the section structure matches its actual tasks, then rebuild the template.
+
+I have what I need. Now I’ll rebuild the template with HW3’s structure. Key differences from HW2: it’s a team of 2 (so author + partner + contribution statement), 4 tasks with different content, and the deliverables tree is different (src/, policy/, skills/, web/, tests/).
+
+Done. Same preamble, title block, section styling, and listing/table setup as HW2, but the body is empty scaffolding for HW3’s four tasks. All your old content is gone, with % TODO markers where your written answers, outputs, and figures go.
+
+A few structural changes I made to match the HW3 handout, so nothing catches you off guard:
+
+Team of 2. Added a second author slot and a boxed contribution statement near the top. The handout requires that split (e.g. 50:50) in the Task 4 report, so I put the box up front and left a reminder comment in Task 4. Fill in your partner’s name and the agreed percentages.
+Task structure follows the handout’s four tasks: (1) vulnerable parser + GDB offset + ret2win + stack diagram, (2) agent-mediated invocation trace with the four-step intended chain, (3) fix/harden + tests + checksec comparison, (4) low-priv user + AppArmor + denial logs + the 400–600 word textbook analysis.
+File index reflects the new deliverables tree (src/, policy/, skills/legacy-parser/, web/, tests/) instead of HW2’s flat layout.
+AI usage is noted as one file per team member, since the group policy calls for separate disclosures.
+
+Everything inside the sections is placeholders and comments only — no answers written. Whenever you want to start a task, I’m here to talk through the concepts and point you at things, but you write it.
+
+Want me to walk through anything on Task 1 to get you going, or is the template all you needed for now?
+
+Hw3 report template
+TEX
+
+What does the assignment mean by stack diagram
+
+A stack diagram is just a picture of how your function’s stack frame is laid out in memory, drawn so you can point at it and say “the overflow starts here, the saved return address is here, and I overwrote it with this.” The handout asks for one because it’s the clearest way to show (not just assert) why copying 512 bytes into a 128-byte buffer lets you hijack control flow.
+
+Here’s the concept. When vulnerable_copy runs, the CPU sets aside a chunk of stack for that function’s frame. On x86-64 the stack grows toward lower addresses, but the overflow (a memcpy-style copy) writes toward higher addresses — from buf upward. So a write that runs past the end of buf marches straight into the metadata the function needs to return correctly. That direction mismatch is the whole trick.
+
+Conceptually a frame for your parser looks like this (high addresses at the bottom, which is where the copy is heading):
+
+  lower addresses
+  ┌─────────────────────────┐
+  │  buf[128]               │  ← copy starts here, writes downward→upward
+  │   ...                   │
+  ├─────────────────────────┤
+  │  saved frame pointer    │  ← "saved frame data" (saved RBP)
+  ├─────────────────────────┤
+  │  saved return address   │  ← what the CPU jumps to on `ret`
+  └─────────────────────────┘
+  higher addresses
+
+The five things the handout names map onto that:
+
+Buffer — your buf[128], where the copy lands.
+Saved frame data — the saved RBP (and any padding/alignment the compiler inserted) sitting between the buffer and the return address.
+Saved return address — the saved RIP: the address ret pops and jumps to. This is the target you’re clobbering.
+Overwrite offset — the distance in bytes from the start of buf to the saved return address. This is the number you derive empirically in GDB; it won’t necessarily be 128 + 8, because the compiler may add padding. Everything before the offset is filler; the bytes at the offset are what overwrites RIP.
+New return target — the address of win(), which you write at that offset so ret jumps into win() instead of the real caller.
+
+So the finished diagram is really showing one story: filler bytes up to the offset, then your win() address overwriting the saved return address, and an arrow from there to win().
+
+Two things worth stressing since they’re yours to produce: the offset comes from your own GDB session (that’s why the handout says to derive it empirically rather than assume a textbook value), and the win() address comes from nm or GDB on your binary. Your drawn diagram should use your actual numbers, and your prose should walk the reader through it.
+
+The sketch above is just to anchor what’s being asked — you’ll want to draw your own (hand-drawn, draw.io, TikZ, whatever) with your real offset and address. Want to talk through how to actually pin down the offset in GDB when you get there?
+
+Can you generate an ai usage readme
+
+I want to flag something before generating this, because the AI usage file is a bit different from the report template.
+
+The AI_USAGE.md is the course’s AI-use disclosure — it’s your honest, first-person record of whether/what/how you used AI on this assignment. The handout is explicit that it must be written by you and reflect your own understanding, and the fields it asks for (“What I changed,” “How I tested it,” “One error, limitation, or rejected suggestion”) are things only you actually know. If I fill those in, I’d be fabricating the very account that’s supposed to be your attestation — and a disclosure that I wrote defeats its own purpose.
+
+So what I can do without crossing that line is give you a blank skeleton that mirrors the exact fields the handout lists, with prompts for you to fill in. That’s the same kind of thing as the LaTeX template — structure, not content. Here’s the format the handout wants:
+
+markdown
+# AI Usage Disclosure — CSCE 465 HW3
+
+**Student:** Zachary Renkema
+
+## Tool/model and date
+<!-- e.g. Claude (Opus 4.x), Oct–Nov 2026 -->
+
+## Purpose
+<!-- Why you used it — learning, brainstorming, debugging, coding, report structuring, etc. -->
+
+## AI Conversation Log files
+<!-- Name the exported log file(s) you're submitting alongside this, e.g. ai_log_zach.md -->
+
+## What I used
+<!-- Which specific parts of the work AI assistance touched -->
+
+## What I changed
+<!-- What you modified, rejected, or rewrote from what the AI produced -->
+
+## How I tested it
+<!-- How you verified correctness yourself (VM runs, GDB, test cases, checksec, etc.) -->
+
+## One error, limitation, or rejected suggestion
+<!-- A concrete case where the AI was wrong or you overrode it -->
+
+A couple of things to keep in mind as you fill it out:
+
+The group policy says both teammates submit separate AI usage files, so your partner needs their own — don’t write theirs.
+You also have to submit the actual conversation logs (exported prompts + responses) as separate files; the disclosure points to them.
+Keep it truthful and specific. “Used Claude to help structure the report template and talk through the stack diagram concept; wrote all code and all answers myself” is the kind of accurate line that holds up.
+
+Want me to drop that skeleton into a AI_USAGE.md file for you to download, or is having the format here enough?
+
+Yes sorry I meant template. Thank you for providing it
+
+There you go — blank skeleton with the handout’s exact fields as HTML comments to fill in. Reminder that your partner submits their own, and you both attach the exported conversation logs the disclosure points to.
