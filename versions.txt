@@ -1,0 +1,7 @@
+gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+GNU gdb (Ubuntu 15.1-1ubuntu1~24.04.1) 15.1
+v24.18.0
+11.16.0
+OpenClaw 2026.7.1-2 (0790d9f)
+ollama version is 0.32.5
+Python 3.12.3
