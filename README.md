@@ -65,15 +65,39 @@ openclaw exec-policy show > evidence/task2_policy.txt
 
 ## Task 3: Hardened parser  (Cameron)
 ```
-gcc -O2 -g -fstack-protector-strong -D_FORTIFY_SOURCE=3 -fPIE -pie -Wl,-z,relro,-z,now -Wall -Wextra -Werror -o legacy_log_parser_fixed src/legacy_log_parser_fixed.c
+gcc -O2 -g -fstack-protector-strong -D_FORTIFY_SOURCE=3 -fPIE -pie -Wl,-z,relro,-z,now -Wl,-z,noexecstack -Wall -Wextra -Werror -o legacy_log_parser_fixed src/legacy_log_parser_fixed.c
 checksec --file=./legacy_log_parser_fixed
 bash tests/run_tests.sh
 ```
 
 ## Task 4: AppArmor confinement  (Cameron)
 ```
+# low-privilege user (no login shell)
+sudo useradd --system --create-home --shell /usr/sbin/nologin agentlab
+
+# payload in the inbox, marker dir present
+mkdir -p inbox markers && python3 src/make_payload.py && mv payload.bin inbox/payload.bin
+
+# DAC: give agentlab access only to what the parser needs
+setfacl -m u:agentlab:x ~ ~/csce465-agentsec
+setfacl -m u:agentlab:rx ~/csce465-agentsec/hw3 legacy_log_parser inbox
+setfacl -m u:agentlab:r inbox/payload.bin
+setfacl -m u:agentlab:rwx markers
+
+# MAC: load the profile and confirm it is enforced
 sudo apparmor_parser -r policy/apparmor.profile
-# run the payload as the confined low-privilege user, then capture denials:
-sudo journalctl -k | grep -i apparmor
-# or: sudo dmesg | grep -i apparmor
+sudo cat /sys/kernel/security/apparmor/profiles | grep legacy   # legacy_log_parser (enforce)
+
+# run 1: as agentlab -> marker written, decoy blocked by DAC (no AppArmor record)
+rm -f markers/ret2win.txt
+sudo -u agentlab ./legacy_log_parser inbox/payload.bin; ls markers/
+
+# run 2: as root -> DAC allows, AppArmor blocks the decoy and logs it
+sudo setfacl -m u:root:rwx markers
+rm -f markers/ret2win.txt
+sudo ./legacy_log_parser inbox/payload.bin; ls markers/
+
+# denial logs
+sudo journalctl -k --since "10 min ago" | grep 'apparmor="DENIED"' | grep legacy
+# or: sudo dmesg | grep -i apparmor | grep legacy
 ```

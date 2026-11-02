@@ -1,0 +1,130 @@
+According to Task 3, can you help me with writing the test cases? and lend some aid with the apparmor.profile code?
+
+Setting up ACLs so the sandboxed user can reach the files
+I’ll write both files: a test script for Task 3 and an AppArmor profile for Task 4.
+
+Created 2 files, shared 2 files
+Here are both files.
+
+Task 3 tests (run_tests.sh)
+The script covers the five required cases. Every test fails if any of these happen:
+
+the process dies from a signal (139 = segfault, 134 = canary abort),
+markers/ret2win.txt appears,
+the exit code is wrong (valid input must return 0, rejected input must return non-zero).
+Each line prints the program’s output, so you can paste the results straight into the report.
+
+The tests only work if your fixed parser does two things:
+
+Rejects input before the copy and returns non-zero. For example:
+c
+   if (n > BUF_SIZE) {
+       fprintf(stderr, "error: %zu bytes exceeds %d-byte limit\n", n, BUF_SIZE);
+       return -1;   /* make main() exit non-zero */
+   }
+   memcpy(buf, input, n);
+Exits non-zero on a missing file.
+If you '\0'-terminate buf and print it with %s, your real limit is 127, so run MAX_LEN=127 bash tests/run_tests.sh. Otherwise, print with printf("%.*s", (int)n, buf) and keep 128. The 128-byte case is exactly where an off-by-one bug would show up.
+
+Task 4 profile (apparmor.profile)
+The comments in the file map each rule to the assignment’s five requirements, which helps with report part (2). Some things to know before you run it:
+
+Payload name. The profile allows only inbox/payload.bin. If your payload has a different name, edit that line.
+
+DAC setup. agentlab needs Unix permissions to reach files in your home directory. AppArmor can only restrict access further; it can’t grant anything. Run this from ~/csce465-agentsec/hw3:
+
+bash
+setfacl -m u:agentlab:x  ~ ~/csce465-agentsec ~/csce465-agentsec/hw3
+setfacl -m u:agentlab:rx ./legacy_log_parser ./inbox
+setfacl -m u:agentlab:r  ./inbox/payload.bin
+setfacl -m u:agentlab:rwx ./markers
+Load and run:
+
+bash
+sudo apparmor_parser -r policy/apparmor.profile
+sudo aa-status | grep legacy_log_parser
+sudo -u agentlab ./legacy_log_parser inbox/payload.bin
+sudo journalctl -k --since "5 min ago" | grep -i apparmor
+What you should see. win() still runs and the marker still gets written, because writing to markers/ is allowed. The read of the decoy shows up as apparmor="DENIED" ... name="/opt/agentsec/decoy.txt". That’s the point of the exercise: the exploit succeeded, but confinement limited what it could do.
+
+If the binary won’t start under enforce mode, it’s probably because the minimal library list is too tight for your distro. Run sudo aa-complain legacy_log_parser, run it once with normal input, read the ALLOWED/DENIED lines in the log, and add the missing paths. As a fallback, you can replace the loader and libc lines with include <abstractions/base>. That’s broader, so mention the tradeoff in your writeup. If abi <abi/3.0>, causes an error, delete that line.
+
+Since you used AI for this part, add this conversation to your AI log and AI_USAGE.md.
+
+Run tests
+SH
+Apparmor
+
+here is the report
+
+Count essay words and find leftover TODOs
+The content is accurate. Nothing in Tasks 3 or 4 is technically wrong, and the essay is 421 words, inside the 400–600 range. Below is what’s missing or will look bad in the PDF, starting with the most important.
+
+Must fix (visible in the PDF or costs points)
+Line 330–332, Task 3: the empty lstlisting will print % TODO: paste test run output as literal text, because % isn’t a comment inside a listing. Delete the whole block, since the screenshot covers it.
+Lines 403–405, Task 4 ACL commands: these don’t match what you actually ran. The parent-directory traversal grants are missing, and without them agentlab couldn’t reach the parser at all. Your text on line 417 even mentions traversal. Add:
+   setfacl -m u:agentlab:x ~ ~/csce465-agentsec
+   setfacl -m u:agentlab:rx ~/csce465-agentsec/hw3 inbox
+Line 453, agentlab run: say why there’s no AppArmor log for this run. The decoy is root-owned with mode 600, the kernel checks DAC before AppArmor, and so DAC denied it first. Also delete the comment on lines 477–481. An agentlab denial record will never appear, so that comment is wrong.
+Line 468, root run: add the key point that fsuid=0 ouid=0 means a root process opening a root-owned file. DAC allowed it, so the denial came from AppArmor alone. That’s the strongest MAC evidence you have. Also note that you gave root an ACL on markers/ so win() could get as far as the decoy.
+Line 381, typos: “fo relocated” and “fo no t”. Line 292: “non-ececutable”. Line 395: “assigment”. Line 453: “As shows”.
+Should add (makes the analysis stronger)
+Line 381, root cause vs. hardening: add that NX was on in both builds and the exploit still worked, because ret2win jumps to existing code and doesn’t run code placed on the stack. Right now the text implies NX helps against this attack.
+Line 375, FORTIFY: say “2 of 4 fortifiable calls”. That number shows FORTIFY coverage is partial.
+Essay, reference monitor: the textbook’s three properties are missing: always invoked, tamperproof, and small enough to verify. Graders usually look for these.
+Essay, line 514–516: you can be definite here. DAC caused the agentlab denial, as explained in fix #3. The hedge reads like you weren’t sure.
+Essay, access matrix: optionally add that ACLs store the matrix by column (per object) and the profile stores it by row (per program).
+These additions would put the essay around 500 words, which is safer than 421.
+Minor formatting
+'safe\_copy' with straight quotes renders as ’safe_copy’. Use \texttt{safe\_copy} here and in similar spots on lines 264, 281, 395, 430, 432, 437.
+“Figure 12/14/15” are hard-coded. They happen to be correct right now, but Figure~\ref{fig:agentlab-acl} stays correct if figures move.
+Rest of the report (your teammate’s parts, but you both submit it)
+Line 74: the Task 0 caption says “Task 1 and 2 Versions”. Make sure task0_ss1.png actually shows all four version commands.
+Line 79: the section title “Task 1:” has a stray colon and no name.
+Line 139: there’s no prose explaining the payload layout (136 bytes of padding, then the address of win()), and that’s in the 40-point rubric item.
+Line 202: “buffer overload” should be “buffer overflow”, and “vulnerable_copy file” should be “function”.
+Line 248 vs. 250, a contradiction: step 2 says the agent’s tool call failed, but step 4 says the program reached win(). If the agent’s run failed, win() was reached only in the direct Task 1 run. Say that clearly. Full credit is still possible when the model fails, as long as the chain is explained.
+Line 536: the AI Use section is empty. Point to both AI_USAGE files and the chat logs.
+Appendix:
+The tests row is empty (add run_tests.sh).
+The report.pdf and README.md descriptions are blank.
+The screenshot names don’t match the ones the report actually uses. It lists lab0.png, task3_tests.png, and so on, while the report uses task0_ss1, task3_ss2, and others. stack_diagram.png doesn’t exist because the diagram is drawn in TikZ.
+
+here is the update version
+
+Fixing a misplaced agentlab paragraph in the Denial Logs section
+Good progress. The ACL commands and the DAC explanation are fixed. But the Task 4 Denial Logs area now has some duplicated paragraphs and wrong figure numbers, and that’s the main thing left in your sections.
+
+Task 4: figure numbers and duplicates (must fix)
+Your figures are numbered: 13 = enforce, 14 = agentlab run, 15 = root run + log. Right now:
+
+Line 447: says “As shown in Figure 13, the marker was created”. Figure 13 is the enforce screenshot. This paragraph is also in the wrong section, since it sits in Profile Design, above the enforce figure.
+Line 467: repeats the same agentlab-run description.
+Line 475: says “Figure 14 shows the audit record from a separate run as root”. Figure 14 is the agentlab run.
+Line 494: repeats the root-run description, this time correctly as Figure 15.
+Line 483: “arkers/” should be “markers/”.
+Also change “Figure 12” on line 420 to Figure~\ref{fig:agentlab-acl}.
+
+Essay: one contradiction (must fix)
+
+Lines 534–536 still say the agentlab error “does not establish which layer caused the denial”. That now contradicts your own Denial Logs section, which says DAC denied it. Rewrite that sentence to agree, e.g. “...is a separate DAC barrier, and it is what denied the agentlab run.”
+
+Still recommended (from last review, not yet done)
+Essay: the reference monitor’s three properties are still missing: always invoked, tamperproof, and verifiable. Adding 2–3 sentences would also move you off the 421-word edge of the range.
+Line 377, NX: add that NX was enabled in both builds and the exploit still worked, because ret2win reuses existing code.
+Line 357 / 371, FORTIFY: say “2 of 4 fortifiable”.
+Quotes: 'safe\_copy', 'memcpy', 'hw3', 'agentlab', 'audit deny', '/bin', and so on should be \texttt{...}.
+Still open in the shared parts
+
+None of these changed since last time:
+
+Line 74: the Task 0 caption says “Task 1 and 2 Versions”.
+Line 79: the section title “Task 1:” has a stray colon and no name.
+Line 139: the ret2win prose about the payload layout is still a TODO.
+Line 202: “buffer overload” should be “buffer overflow”, and “vulnerable_copy file” should be “function”.
+Lines 248 vs. 250: step 2 says the tool call failed, but step 4 says the program reached win().
+Line 556: the AI Use section is empty.
+Appendix:
+the tests row is empty
+the report.pdf and README.md descriptions are blank
+the screenshot names don’t match the real files (lab0.png, task3_tests.png, stack_diagram.png, etc.

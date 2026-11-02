@@ -5,3 +5,9 @@ v24.18.0
 OpenClaw 2026.7.1-2 (0790d9f)
 ollama version is 0.32.5
 Python 3.12.3
+checksec v2.6.0, Brian Davis, github.com/slimm609/checksec.sh, Dec 2015
+Based off checksec v1.5, Tobias Klein, www.trapkit.de, November 2011
+
+AppArmor parser version 4.0.1
+Copyright (C) 1999-2008 Novell Inc.
+Copyright 2009-2018 Canonical Ltd.
